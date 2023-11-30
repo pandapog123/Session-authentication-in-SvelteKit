@@ -15,27 +15,35 @@ export type Session = {
 const usersStore = writable<User[]>([]);
 const sessionsStore = writable<Session[]>([]);
 
-export function validateSession(id: string) {
-  const sessions = get(sessionsStore);
+// Step 1
+export function validateEmail(email: string) {
+  const emailRegex = /[-A-Za-z0-9_.%]+@[-A-Za-z0-9_.%]+\.[A-Za-z]+/gm;
 
-  const sessionResult = sessions.find((session) => session.id === id);
+  const emailRegexExec = emailRegex.exec(email);
 
-  if (!sessionResult) {
-    throw new Error("Session does not exist");
-  }
-
-  const users = get(usersStore);
-
-  const userResult = users.find((user) => user.id === sessionResult.userId);
-
-  if (!userResult) {
-    throw new Error("User does not exist");
+  if (emailRegexExec && emailRegexExec[0] === email) {
+    return {
+      success: true,
+    };
   }
 
   return {
-    sessionResult,
-    userResult,
+    error: true,
+    message: "Email is invalid",
   };
+}
+
+export function validatePassword(password: string) {
+  const requiredLength = password.length > 7;
+
+  if (!requiredLength) {
+    return {
+      error: true,
+      message: "Password must be at least 8 characters in length",
+    };
+  }
+
+  return { success: true };
 }
 
 export function createUser(email: string, password: string) {
@@ -74,6 +82,32 @@ export function createUser(email: string, password: string) {
   return createSessionById(newUser.id);
 }
 
+function createSessionById(userId: string) {
+  const users = get(usersStore);
+
+  const user = users.find((user) => user.id === userId);
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const newSession: Session = {
+    id: uuid(),
+    userId,
+  };
+
+  sessionsStore.update((previousSessions) => {
+    const filteredSessions = previousSessions.filter(
+      (session) => session.userId !== userId
+    );
+
+    return [...filteredSessions, newSession];
+  });
+
+  return newSession;
+}
+
+// Step 2
 export function createSessionByEmail(email: string, password: string) {
   const emailValidationResult = validateEmail(email);
 
@@ -106,59 +140,28 @@ export function createSessionByEmail(email: string, password: string) {
   return createSessionById(userFound.id);
 }
 
-function createSessionById(userId: string) {
-  const users = get(usersStore);
+// Step 3
+export function validateSession(id: string) {
+  const sessions = get(sessionsStore);
 
-  const user = users.find((user) => user.id === userId);
+  const sessionResult = sessions.find((session) => session.id === id);
 
-  if (!user) {
-    throw new Error("User not found");
+  if (!sessionResult) {
+    throw new Error("Session does not exist");
   }
 
-  const newSession: Session = {
-    id: uuid(),
-    userId,
-  };
+  const users = get(usersStore);
 
-  sessionsStore.update((previousSessions) => {
-    const filteredSessions = previousSessions.filter(
-      (session) => session.userId !== userId
-    );
+  const userResult = users.find((user) => user.id === sessionResult.userId);
 
-    return [...filteredSessions, newSession];
-  });
-
-  return newSession;
-}
-
-export function validateEmail(email: string) {
-  const emailRegex = /[-A-Za-z0-9_.%]+@[-A-Za-z0-9_.%]+\.[A-Za-z]+/gm;
-
-  const emailRegexExec = emailRegex.exec(email);
-
-  if (emailRegexExec && emailRegexExec[0] === email) {
-    return {
-      success: true,
-    };
+  if (!userResult) {
+    throw new Error("User does not exist");
   }
 
   return {
-    error: true,
-    message: "Email is invalid",
+    sessionResult,
+    userResult,
   };
-}
-
-export function validatePassword(password: string) {
-  const requiredLength = password.length > 7;
-
-  if (!requiredLength) {
-    return {
-      error: true,
-      message: "Password must be at least 8 characters in length",
-    };
-  }
-
-  return { success: true };
 }
 
 export function signOut(id: string) {
